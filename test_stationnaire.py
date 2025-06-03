@@ -2,132 +2,200 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import time
 
+start_time = time.time()
 
 def init():
     line.set_data([], [])
     return line,
 
-
 def animate(j):
-    line.set_data(x_array, final_density[j, :])  # Crée un graphique pour chaque densite sauvegarde
+    line.set_data(o, final_densite[j,:]) #Crée un graphique pour chaque densite sauvegarde
     return line,
 
+dt=1E-7
+dx=0.001
+nx=int(1/dx)*2
+nt=90000 # En fonction du potentiel il faut modifier ce parametre car sur certaines animations la particule atteins les bords
+nd=int(nt/1000)+1#nombre d image dans notre animation
+n_frame = nd
+s=dt/(dx**2)
+xc=0.6
+sigma=0.05
+A=1/(math.sqrt(sigma*math.sqrt(math.pi)))
+v0=-4000
+e=5#Valeur du rapport E/V0
+E=e*v0
+k=math.sqrt(2*abs(E))
 
-dt = 1E-7
-dx = 0.001
-nx = int(1 / dx) * 2
-nt = 200000  # En fonction du potentiel il faut modifier ce parametre car sur certaines animations la particule atteins les bords
-n_frames = int(nt / 1000) + 1  # nombre d image dans notre animation
-s = dt / (dx ** 2)
-v0 = -4000
-e = 1  # Valeur du rapport E/V0
-E = e * v0
-k = math.sqrt(2 * abs(E))
+# v0=2
+# dt=1E-5
+# dx=0.01
+# nx=100*2
+# nt=v0*10000 # En fonction du potentiel il faut modifier ce parametre car sur certaines animations la particule atteins les bords
+# nd=int(nt/1000)+1 #nombre d image dans notre animation
+# s=dt/(dx**2)
+# xc=4.5
+# sigma=0.1
+# A=1/(math.sqrt(sigma*math.sqrt(math.pi)))
 
-x_array = np.linspace(0, (nx - 1) * dx, nx)
-V_potential = np.zeros(nx)
-largeur_potentiel = 0.1
-largeur_normalisee = largeur_potentiel/2
+#e=1 #Valeur du rapport E/V0
 
-for i in range(nx):
-    if i>= nx/2-nx*largeur_normalisee and i<= nx/2+nx*largeur_normalisee:
-        V_potential[i] = v0
+# debut_barriere = 1
+# largeur_barriere = 0.5
+# fin_barriere = debut_barriere + largeur_barriere
+# #k=math.sqrt(2*E)
+#
+# print(E/v0)
 
-# gaussian wave packet (Paquet ondes gaussien)
-xc = 0.6
-sigma = 0.05
-normalisation = 1 / (math.sqrt(sigma * math.sqrt(math.pi)))
-wp_gauss = normalisation * np.exp(1j * k * x_array - ((x_array - xc) ** 2) / (2 * (sigma ** 2)))
-# wave packet Real part
-wp_re = np.zeros(nx)
-wp_re[:] = np.real(wp_gauss[:])
-# wave packet Imaginary part
-wp_im = np.zeros(nx)
-wp_im[:] = np.imag(wp_gauss[:])
+o=np.zeros(nx)
+V=np.zeros(nx)
 
-density = np.zeros((nt, nx))
-density[0, :] = np.absolute(wp_gauss[:]) ** 2
+# Initialisation des tableaux
+o = np.linspace(0, (nx - 1) * dx, nx)
+V = np.zeros(nx)
+#V[o >= 1] = v0  # Potentiel
+V[(o >= 0.8) & (o<=0.9)] = v0  # Potentiel
 
-final_density = np.zeros((n_frames, nx))
+cpt = A * np.exp(1j * k * o - ((o - xc) ** 2) / (2 * (sigma ** 2)))
+densite=np.zeros((nt,nx))
+densite[0,:] = np.absolute(cpt[:]) ** 2
+final_densite=np.zeros((n_frame,nx))
+re=np.zeros(nx)
+re[:]=np.real(cpt[:])
 
-# Algo devant retourner la densité de probabilité de présence de la particule à différents instants
-for t in range(1, nt):
-    # Evolution de la partie réelle
-    wp_re[1:-1] += s * (wp_im[2:] + wp_im[:-2] - 2 * wp_im[1:-1]) - dt * V_potential[1:-1] * wp_im[1:-1]
-    # Evolution de la partie imaginaire
-    wp_im[1:-1] -= s * (wp_re[2:] + wp_re[:-2] - 2 * wp_re[1:-1]) - dt * V_potential[1:-1] * wp_re[1:-1]
+b=np.zeros(nx)
 
-    norm = np.sqrt(np.sum(wp_re ** 2 + wp_im ** 2) * dx)
-    wp_re /= norm
-    wp_im /= norm
+im=np.zeros(nx)
+im[:]=np.imag(cpt[:])
 
-    # Densité de probabilité
-    density[t, :] = wp_re ** 2 + wp_im ** 2
+it=0
+for i in range(1, nt):
+    if i % 2 != 0:
+        b[1:-1]=im[1:-1]
+        im[1:-1] = im[1:-1] + s * (re[2:] + re[:-2]) - 2 * re[1:-1] * (s + V[1:-1] * dt)
+        densite[i,1:-1] = re[1:-1]*re[1:-1] + im[1:-1]*b[1:-1]
+    else:
+        re[1:-1] = re[1:-1] - s * (im[2:] + im[:-2]) + 2 * im[1:-1] * (s + V[1:-1] * dt)
 
-    # Sauvegarde pour l'animation toutes les 1000 itérations
-    if t % 1000 == 0:
-        final_density[int(t / 1000), :] = density[t, :]
+for i in range(1,nt):
+    if((i-1)%1000==0):
+        it+=1
+        final_densite[it][:]=densite[i][:]
 
-plot_title = "E/Vo=" + str(e)
+# it=0
+# for i in range(1, nt):
+#     if i % 2 != 0:
+#         b[1:-1]=im[1:-1]
+#         im[1:-1] = im[1:-1] + s * (re[2:] + re[:-2]) - 2 * re[1:-1] * (s + V[1:-1] * dt)
+#         if (i - 1) % 1000 == 0:
+#             it+=1
+#             densite[it,1:-1] = re[1:-1]*re[1:-1] + im[1:-1]*b[1:-1]
+#     else:
+#         re[1:-1] = re[1:-1] - s * (im[2:] + im[:-2]) + 2 * im[1:-1] * (s + V[1:-1] * dt)
 
-fig = plt.figure()  # initialise la figure principale
+# it = 0
+# for i in range(1, nt):
+#     if i % 2 != 0:
+#         it += 1
+#         im[1:-1] = im[1:-1] + s * (re[2:] + re[:-2]) - 2 * re[1:-1] * (s + V[1:-1] * dt)
+#         densite[it][1:-1] = im[1:-1]**2 + re[1:-1]** 2
+#     else:
+#         re[1:-1] = re[1:-1] - s * (im[2:] + im[:-2]) + 2 * im[1:-1] * (s + V[1:-1] * dt)
+# #
+# it=0
+# for i in range (1,nt):
+#     if (i%2!=0):
+#         if((i-1)%1000==0):
+#             it=it+1
+#             for cpt in range (1,nx-1):
+#                 #b[cpt]=im[cpt]
+#                 im[cpt]=im[cpt]+(s*re[cpt+1])+(s*re[cpt-1])-(2*re[cpt]*(s+(V[cpt]*dt)))
+#                 densite[it][cpt]=im[cpt]*im[cpt]+(re[cpt]**2)
+#         else:
+#              for cpt in range (1,nx-1):
+#                  im[cpt]=im[cpt]+(s*re[cpt+1])+(s*re[cpt-1])-(2*re[cpt]*(s+(V[cpt]*dt)))
+#     else:
+#         for cpt in range (1,nx-1):
+#             re[cpt]=re[cpt]-(s*im[cpt+1])-(s*im[cpt-1])+(2*im[cpt]*(s+(V[cpt]*dt)))
+
+
+# fig = plt.figure() # initialise la figure principale
+# line, = plt.plot([], [])
+# plt.ylim(0,3.5)
+# plt.xlim(0,10)
+# plt.plot(o,V,label="Potentiel")
+# #Fais apparaitre sur tous les graphiques le potentiel
+# #En changeant V par ((V*6)/v0) ca permet de faire rentrer le potentiel dans le graphique
+# plt.title("Marche Ascendante avec E/Vo=1")
+# plt.xlabel("x")
+# plt.ylabel("Densité de probabilité de présence")
+# plt.legend() #Permet de faire apparaitre la legende
+#
+#  frames = 200
+#  ani = animation.FuncAnimation(fig, animate, init_func=init, frames=nd, blit=True, interval=50, repeat=False)
+# # #ani = animation.FuncAnimation(fig, update, frames=frames, interval=50, blit=True)
+# #
+# #ani.save('min.mp4', writer = animation.FFMpegWriter(fps=30, bitrate=5000))
+
+plot_title = "Marche Ascendante avec E/Vo="+str(e)
+
+fig = plt.figure() # initialise la figure principale
 line, = plt.plot([], [])
-plt.ylim(-1, 1)
-plt.xlim(0, 2)
-if (v0 == 0):
-    v0 = 1
-plt.plot(x_array, V_potential / abs(v0), 'r--', label="Potentiel (échelle réduite)")
+plt.ylim(-5,13)
+plt.xlim(0,2)
+plt.plot(o,V,label="Potentiel")
 plt.title(plot_title)
 plt.xlabel("x")
 plt.ylabel("Densité de probabilité de présence")
-# plt.legend() #Permet de faire apparaitre la legende
+plt.legend() #Permet de faire apparaitre la legende
 
-ani = animation.FuncAnimation(fig, animate, init_func=init, frames=n_frames, blit=False, interval=100, repeat=False)
+ani = animation.FuncAnimation(fig,animate,init_func=init, frames=nd, blit=False, interval=100, repeat=False)
 #file_name = 'paquet_onde_e='+str(e)+'.mp4'
-#ani.save(file_name, writer = animation.FFMpegWriter(fps=20, bitrate=5000))
+#ani.save(file_name, writer = animation.FFMpegWriter(fps=120, bitrate=5000))
 plt.show()
 
-# -------------------------------
-# CALCUL DES ÉTATS STATIONNAIRES
-# -------------------------------
+
+# end_time = time.time()
+# elapsed_time = end_time - start_time
+# print(f"Elapsed Time: {elapsed_time} seconds")
+
+
+# ----------------------------------------------------------
+# CALCUL ET AFFICHAGE DES ÉTATS STATIONNAIRES
+# ----------------------------------------------------------
 
 print("\nCalcul des états stationnaires...")
 
-# Construction de la matrice Hamiltonienne
-diag = 2.0 / dx**2 + V_potential
+# 1. Matrice Hamiltonienne discrétisée (méthode des différences finies)
+diag = 2.0 / dx**2 + V
 off_diag = -1.0 / dx**2 * np.ones(nx - 1)
 H = np.diag(diag) + np.diag(off_diag, 1) + np.diag(off_diag, -1)
 
-# Diagonalisation : énergies et fonctions d'onde
+# 2. Diagonalisation de l'Hamiltonien
 energies, wavefuncs = np.linalg.eigh(H)
 
-# Normalisation des fonctions d'onde
+# 3. Normalisation des fonctions d'onde
 normalized_wavefuncs = np.zeros_like(wavefuncs)
 for n in range(wavefuncs.shape[1]):
     psi_n = wavefuncs[:, n]
-    psi_n /= np.sqrt(np.sum(psi_n**2) * dx)
-    normalized_wavefuncs[:, n] = psi_n
+    norm = np.sqrt(np.sum(psi_n**2) * dx)
+    normalized_wavefuncs[:, n] = psi_n / norm
 
-# ---------------------------------------------------
-# AFFICHAGE DES DENSITÉS |ψ_n(x)|² UNIQUEMENT
-# ---------------------------------------------------
-N = 4  # nombre d'états à afficher
-plt.figure(figsize=(10,6))
+# 4. Affichage des N premiers états propres
+N = 4  # Nombre d'états à afficher
+plt.figure(figsize=(10, 6))
 for n in range(N):
-    density_n = normalized_wavefuncs[:, n]**2
-    # on décale verticalement pour coller à l'énergie
-    plt.plot(x_array, density_n + energies[n]/abs(v0),
-             label=fr'$|\psi_{{{n}}}(x)|^2 + E_{{{n}}}$')
+    psi2 = normalized_wavefuncs[:, n]**2
+    plt.plot(o, psi2 + energies[n]/abs(v0), label=fr'$|\psi_{{{n}}}|^2 + E_{{{n}}}$')
 
-# Potentiel en fond
-plt.plot(x_array, V_potential/abs(v0), 'r--', label='Potentiel (réduit)')
-plt.title(r"Densités des états stationnaires $|\psi_n(x)|^2$")
+# Potentiel mis à l’échelle
+plt.plot(o, V/abs(v0), 'r--', label='Potentiel (échelle réduite)')
+plt.title("États stationnaires : $|\psi_n(x)|^2$")
 plt.xlabel("x")
-plt.ylabel(r"$|\psi_n|^2$ (décalé par énergie)")
+plt.ylabel("Densité (décalée par énergie)")
+plt.grid(True)
 plt.legend()
-plt.grid()
 plt.tight_layout()
 plt.show()
-
-
